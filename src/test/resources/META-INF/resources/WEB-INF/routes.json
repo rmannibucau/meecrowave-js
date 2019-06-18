@@ -1,0 +1,12 @@
+{
+  "routes": [
+    {
+      "language": "js",
+      "handler": "foo.js",
+      "urlPatterns": [
+        "/foo",
+        "/bar/*"
+      ]
+    }
+  ]
+}

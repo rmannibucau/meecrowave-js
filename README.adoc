@@ -1,0 +1,80 @@
+= GraalVM Servlet Demo
+
+This demo shows how to leverage GraalVM to integrate js code as handlers of servlet requests.
+
+== Configuration
+
+Configuration is based on a JSON file. It defaults on `WEB-INF/routes.json` but is configurable through `routes.location` init parameter of the context (use `WEB-INF/web.xml` to set it).
+
+The JSON shape is the following one:
+
+[source,json]
+----
+{
+  "routes": [
+    {
+      // servlet ("handler") setup
+      "name": "My Handler", // optional
+      "loadOnStartup": 1, // optional
+      "language": "js", // optional
+      "handler": "foo.js", // default to name, found in classpath
+      "urlPatterns": [ // 1 required
+        "/foo",
+        "/bar/*"
+      ],
+      // optional, see graal Context doc - js guest language feature flipping
+      "allowAllAccess": true,
+      "allowCreateThread": true,
+      "allowExperimentalOptions": true,
+      "allowIO": true,
+      "allowNativeAccess": true,
+      "allowHostAccess": true,
+      "allowPolyglotAccess": true,
+      "options": { // optional
+        "key": "value"
+      }
+    },
+    ....
+  ]
+}
+----
+
+== Implement your own handlers
+
+Handler are pure files sourced in a GraalVM `Context` taking specific bindings.
+The default binding is composed of `request` and `response` being the corresponding servlet objects
+but you can extend the set of bindings implementing the SPI `com.github.rmannibucau.meecrowave.js.spi.BindingContributor`.
+
+Here is an example for CDI:
+
+[source,java]
+----
+import javax.enterprise.inject.spi.CDI;
+import org.graalvm.polyglot.Value;
+import com.github.rmannibucau.meecrowave.js.spi.BindingContributor;
+
+public class MyBindings implements BindingContributor {
+    private MyService myService;
+
+    @Override
+    public void init() {
+        final CDI<?> container = CDI.current();
+        myService = container.select(MyService.class).get();
+    }
+
+    @Override
+    public void contribute(final Value bindings) {
+        bindings.putMember("myService", myService);
+    }
+}
+----
+
+TIP: it is recommended to do the look ups in `init` which is called outside the runtime path - `init` and `destroy` are aligned on servlet lifecycle.
+
+== Run
+
+This is a plain Servlet module so it should be usable with Tomcat and Jetty.
+Default dependencies set uses Apache Meecrowave to ensure an IoC is there and you can write real application but this is optional.
+If you want to use Meecrowave, the default main is ready to use: `org.apache.meecrowave.runner.Cli`
+
+IMPORTANT: this relies on GraalVM as VM, don't forget to change your default JVM if you use OpenJDK.
